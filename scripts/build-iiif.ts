@@ -29,6 +29,21 @@ const IIIF_BASE = `${SITE_BASE}/iiif`;
 
 type Canvas = Record<string, unknown>;
 
+type Caption = { label?: string; summary?: string };
+type Captions = Record<string, Caption>;
+
+async function loadCaptions(): Promise<Captions> {
+  try {
+    const raw = await fs.readFile(
+      path.resolve("scripts/captions.json"),
+      "utf8",
+    );
+    return JSON.parse(raw) as Captions;
+  } catch {
+    return {};
+  }
+}
+
 const isImage = (f: string) => /\.(jpe?g|png|tiff?|webp)$/i.test(f);
 const isVideo = (f: string) => /\.(mp4|webm|mov)$/i.test(f);
 
@@ -179,6 +194,7 @@ function imageCanvas(
   },
   index: number,
   fileName: string,
+  caption: Caption,
 ): Canvas {
   const canvasId = `${IIIF_BASE}/manifest/canvas/${index}`;
   const serviceId = `${IIIF_BASE}/${info.slug}`;
@@ -186,10 +202,11 @@ function imageCanvas(
   // smallest size; reuse it as the painting body so Clover has something to
   // load before the tile grid resolves.
   const imgId = `${serviceId}/full/${info.thumbW},${info.thumbH}/0/default.jpg`;
-  return {
+  const canvas: Canvas = {
     id: canvasId,
     type: "Canvas",
-    label: { en: [fileName] },
+    label: { en: [caption.label ?? fileName] },
+    ...(caption.summary ? { summary: { en: [caption.summary] } } : {}),
     width: info.width,
     height: info.height,
     thumbnail: [
@@ -230,6 +247,7 @@ function imageCanvas(
       },
     ],
   };
+  return canvas;
 }
 
 function videoCanvas(
@@ -245,12 +263,14 @@ function videoCanvas(
   },
   index: number,
   fileName: string,
+  caption: Caption,
 ): Canvas {
   const canvasId = `${IIIF_BASE}/manifest/canvas/${index}`;
   return {
     id: canvasId,
     type: "Canvas",
-    label: { en: [fileName] },
+    label: { en: [caption.label ?? fileName] },
+    ...(caption.summary ? { summary: { en: [caption.summary] } } : {}),
     width: info.width,
     height: info.height,
     duration: info.duration,
@@ -291,20 +311,22 @@ function videoCanvas(
 async function main() {
   await fs.mkdir(OUT_DIR, { recursive: true });
   const entries = (await fs.readdir(SOURCE_DIR)).sort();
+  const captions = await loadCaptions();
 
   const canvases: Canvas[] = [];
   let i = 0;
   for (const f of entries) {
     const full = path.join(SOURCE_DIR, f);
     const slug = slugify(f);
+    const caption = captions[f] ?? {};
     if (isImage(f)) {
       console.log(`[image] ${f} -> ${slug}`);
       const info = await buildTilesForImage(full, slug);
-      canvases.push(imageCanvas(info, i++, f));
+      canvases.push(imageCanvas(info, i++, f, caption));
     } else if (isVideo(f)) {
       console.log(`[video] ${f} -> ${slug}`);
       const info = await copyVideo(full, slug, f);
-      canvases.push(videoCanvas(info, i++, f));
+      canvases.push(videoCanvas(info, i++, f, caption));
     }
   }
 
