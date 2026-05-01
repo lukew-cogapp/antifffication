@@ -1,5 +1,5 @@
 import Viewer from "@samvera/clover-iiif/viewer";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const MANIFEST_PATH = `${import.meta.env.BASE_URL}iiif/manifest.json`;
 const manifestUrl = () =>
@@ -7,29 +7,37 @@ const manifestUrl = () =>
     ? MANIFEST_PATH
     : new URL(MANIFEST_PATH, window.location.href).toString();
 
+type LangMap = { en?: string[] };
+type Canvas = {
+  id: string;
+  label?: LangMap;
+  summary?: LangMap;
+};
 type Manifest = {
-  label?: { en?: string[] };
-  summary?: { en?: string[] };
+  label?: LangMap;
+  summary?: LangMap;
+  items?: Canvas[];
 };
 
 function App() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
+  const [activeCanvasId, setActiveCanvasId] = useState<string | null>(null);
   const cloverHostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch(manifestUrl())
       .then((r) => r.json())
-      .then(setManifest)
+      .then((m: Manifest) => {
+        setManifest(m);
+        if (m.items?.[0]) setActiveCanvasId(m.items[0].id);
+      })
       .catch((e) => console.error("manifest load failed", e));
   }, []);
 
-  // Clover renders <video> inside its own subtree on each canvas change. Watch
-  // the host node and force loop/autoplay/muted on every video that appears
-  // (muted required for autoplay under most browser policies).
+  // Force loop/autoplay/muted on every <video> Clover renders.
   useEffect(() => {
     const host = cloverHostRef.current;
     if (!host) return;
-
     const apply = (root: ParentNode) => {
       for (const v of root.querySelectorAll("video")) {
         if (!v.loop) v.loop = true;
@@ -38,7 +46,6 @@ function App() {
         if (v.paused) v.play().catch(() => {});
       }
     };
-
     apply(host);
     const observer = new MutationObserver(() => apply(host));
     observer.observe(host, { childList: true, subtree: true });
@@ -47,6 +54,14 @@ function App() {
 
   const title = manifest?.label?.en?.[0] ?? "Antifffication";
   const summary = manifest?.summary?.en?.[0] ?? "";
+
+  const activeCanvas = useMemo(() => {
+    if (!manifest?.items || !activeCanvasId) return null;
+    return manifest.items.find((c) => c.id === activeCanvasId) ?? null;
+  }, [manifest, activeCanvasId]);
+
+  const activeLabel = activeCanvas?.label?.en?.[0];
+  const activeSummary = activeCanvas?.summary?.en?.[0];
 
   return (
     <div className="min-h-svh max-w-6xl mx-auto px-6 py-10">
@@ -70,6 +85,7 @@ function App() {
             <div ref={cloverHostRef} className="w-full h-full">
               <Viewer
                 iiifContent={manifestUrl()}
+                canvasIdCallback={(id: string) => setActiveCanvasId(id)}
                 options={{
                   canvasBackgroundColor: "#0b0a0d",
                   showIIIFBadge: true,
@@ -78,6 +94,21 @@ function App() {
               />
             </div>
           </div>
+
+          {(activeLabel || activeSummary) && (
+            <div className="mt-4 max-w-3xl">
+              {activeLabel && (
+                <h2 className="text-lg font-semibold text-accent">
+                  {activeLabel}
+                </h2>
+              )}
+              {activeSummary && (
+                <p className="mt-1 text-fg/80 text-sm leading-relaxed">
+                  {activeSummary}
+                </p>
+              )}
+            </div>
+          )}
         </section>
       )}
 
