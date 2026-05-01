@@ -325,6 +325,11 @@ async function main() {
     path.join(OUT_DIR, "manifest.json"),
     JSON.stringify(manifest, null, 2),
   );
+
+  // sharp's iiif3 layout drops a `vips-properties.xml` at the parent dir of
+  // every tile pyramid; the last write lands in OUT_DIR root and is unused.
+  await fs.rm(path.join(OUT_DIR, "vips-properties.xml"), { force: true });
+
   console.log(`Wrote manifest with ${canvases.length} canvases.`);
 }
 

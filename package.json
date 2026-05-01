@@ -20,10 +20,12 @@
     "react-router-dom": "^7.14.2",
     "tailwindcss": "^4.2.4"
   },
+  "optionalDependencies": {
+    "@img/sharp-darwin-arm64": "^0.34.5",
+    "@img/sharp-libvips-darwin-arm64": "^1.2.4"
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.13",
-    "@img/sharp-darwin-arm64": "^0.34.5",
-    "@img/sharp-libvips-darwin-arm64": "^1.2.4",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
